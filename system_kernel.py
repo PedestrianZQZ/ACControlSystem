@@ -5,9 +5,9 @@ import queue
 
 COLD = '1'  # 顾客请求空调设置参数
 WARM = '2'
-LOW = '1'
-MID = '2'
-HIGH = '3'
+LOW = 1
+MID = 2
+HIGH = 3
 
 COLDONLY = '1'  # 管理员空调运行模式设置
 WARMONLY = '2'
@@ -75,7 +75,7 @@ def find_request_by_id(id, queue):
     for index, item in enumerate(queue):
         if item.id == id:
             return index
-    return False
+    return FAILMSG
 
 class Room:
     isopen = False
@@ -137,31 +137,6 @@ class Scheduler:
         self.max_serve_num = max_serve_num
         self.max_wait_time = max_wait_time
 
-        # request = Request(401, COLD, 24, HIGH)
-        # self.serve_queue.append(request)
-        # self.serve_time_list.append(0)
-        # request = Request(402, COLD, 23, HIGH)
-        # self.serve_queue.append(request)
-        # self.serve_time_list.append(0)
-        # request = Request(403, COLD, 22, HIGH)
-        # self.serve_queue.append(request)
-        # self.serve_time_list.append(0)
-        # request = Request(404, COLD, 21, MID)
-        # self.wait_queue.append(request)
-        # self.wait_time_list.append(0)
-        # request = Request(405, WARM, 27, MID)
-        # self.wait_queue.append(request)
-        # self.wait_time_list.append(0)
-        # request = Request(406, WARM, 28, MID)
-        # self.wait_queue.append(request)
-        # self.wait_time_list.append(0)
-        # request = Request(407, WARM, 29, HIGH)
-        # self.wait_queue.append(request)
-        # self.wait_time_list.append(0)
-        # request = Request(408, WARM, 30, LOW)
-        # self.wait_queue.append(request)
-        # self.wait_time_list.append(0)
-
         self.lock = threading.RLock()
 
         thread = threading.Thread(target=self.schedule, args=(6,))
@@ -174,14 +149,14 @@ class Scheduler:
         isok = False
         try:
             result = find_request_by_id(request.id, self.serve_queue)
-            if result != False:
-                del self.serve_queue[result]
+            if result != FAILMSG:
+                self.serve_queue.remove(self.serve_queue[result])
             result = find_request_by_id(request.id, self.wait_queue)
-            if result != False:
-                del self.wait_queue[result]
+            if result != FAILMSG:
+                self.wait_queue.remove(self.wait_queue[result])
             result = find_request_by_id(request.id, self.pause_queue)
-            if result != False:
-                del self.pause_queue[result]
+            if result != FAILMSG:
+                self.pause_queue.remove(self.pause_queue[result])
 
             if len(self.serve_queue) < int(self.max_serve_num):  # 如果服务队列有空位，直接加
                 self.serve_queue.append(request)
@@ -238,16 +213,20 @@ class Scheduler:
         self.lock.acquire()
         try:
             result = find_request_by_id(id, self.serve_queue)
-            if result == False:
+            if result == FAILMSG:
                 result = find_request_by_id(id, self.wait_queue)
-                if result == False:
-                    return False
+                if result == FAILMSG:
+                    result = find_request_by_id(id, self.pause_queue)
+                    if result == FAILMSG:
+                        return False
+                    else:
+                        self.pause_queue.remove(self.pause_queue[result])
                 else:
-                    del self.wait_queue[result]
-                    del self.wait_time_list[result]
+                    self.wait_queue.remove(self.serve_queue[result])
+                    self.wait_time_list.remove(self.serve_time_list[result])
             else:
-                del self.serve_queue[result]
-                del self.serve_time_list[result]
+                self.serve_queue.remove(self.serve_queue[result])
+                self.serve_time_list.remove(self.serve_time_list[result])
         finally:
             self.lock.release()
         return True
@@ -258,8 +237,8 @@ class Scheduler:
             result = find_request_by_id(id, self.wait_queue)
             self.serve_queue.append(self.wait_queue[result])
             self.serve_time_list.append(0)
-            del self.wait_queue[result]
-            del self.wait_time_list[result]
+            self.wait_queue.remove(self.serve_queue[result])
+            self.wait_time_list.remove(self.serve_time_list[result])
             client = g_conn_pool_dict[id]
             client.sendall("ac running!".encode('utf-8'))
             room_dict[id].request_state = 'running'
@@ -272,8 +251,8 @@ class Scheduler:
             result = find_request_by_id(id, self.serve_queue)
             self.wait_queue.append(self.serve_queue[result])
             self.wait_time_list.append(0)
-            del self.serve_queue[result]
-            del self.serve_time_list[result]
+            self.serve_queue.remove(self.serve_queue[result])
+            self.serve_time_list.remove(self.serve_time_list[result])
             client = g_conn_pool_dict[id]
             client.sendall("ac waiting!".encode('utf-8'))
             room_dict[id].request_state = 'waiting'
@@ -284,10 +263,10 @@ class Scheduler:
         result = self.wait_queue[0]
         wait_time = 0
         for index, item in enumerate(self.wait_queue):
-            if ord(item.speed) > ord(result.speed):  # 挑风速大的
+            if item.speed > result.speed:  # 挑风速大的
                 result = item
                 wait_time = self.wait_time_list[index]
-            elif ord(item.speed) == ord(result.speed):  # 风速相同挑等待时间长的
+            elif item.speed == result.speed:  # 风速相同挑等待时间长的
                 if self.wait_time_list[index] > wait_time:
                     result = item
                     wait_time = self.wait_time_list[index]
@@ -304,10 +283,10 @@ class Scheduler:
                 for index1, time1 in enumerate(self.wait_time_list):  # 接着处理到等待时间的请求
                     if time1 >= self.max_wait_time:
                         target_request = self.wait_queue[index1]
-                        serve_time = 0
+                        serve_time = -1  # 存疑
 
                         for index2, request in enumerate(self.serve_queue):
-                            if request.speed < self.wait_queue[index1]:  # 如果服务队列中有优先级低的，直接替换
+                            if request.speed < self.wait_queue[index1].speed:  # 如果服务队列中有优先级低的，直接替换
                                 self.swap_out(request.id)
                                 self.swap_in(self.wait_queue[index1].id)
                                 break
@@ -327,8 +306,6 @@ class Scheduler:
                     item = item + 1
             finally:
                 self.lock.release()
-            # client = g_conn_pool_dict['2']
-            # client.sendall("schedule test".encode("utf-8"))
             time.sleep(5)
 
     def on_pause(self, id):
@@ -337,10 +314,11 @@ class Scheduler:
             index = find_request_by_id(id, self.serve_queue)
             request = self.serve_queue[index]
             self.pause_queue.append(request)
-            del self.serve_queue[index]
-            del self.serve_time_list[index]
+            self.serve_queue.remove(self.serve_queue[index])
+            self.serve_time_list.remove(self.serve_time_list[index])
             client = g_conn_pool_dict[id]
             client.sendall("ac pausing!".encode('utf-8'))
+            room_dict[id].request_state = 'pausing'
         finally:
             self.lock.release()
 
@@ -363,6 +341,7 @@ class Scheduler:
                         isok = True
                         client = g_conn_pool_dict[id]
                         client.sendall("ac resuming!".encode('utf-8'))
+                        room_dict[id].request_state = 'running'
                         break
 
                 if not isok:  # 如果没有优先级更低的，进入等待队列
@@ -370,10 +349,9 @@ class Scheduler:
                     self.wait_time_list.append(0)
                     client = g_conn_pool_dict[id]
                     client.sendall("ac waiting!".encode('utf-8'))
+                    room_dict[id].request_state = 'waiting'
         finally:
             self.lock.release()
-
-
 
 
 class AcController:
@@ -383,6 +361,9 @@ class AcController:
     mode = COLDWARM  # 当前空调系统支持的运行模式
     max_serve_num = 1
     max_wait_time = 0
+    high_price = 3
+    mid_price = 2
+    low_price = 1
     isopen = False
     sc = None  # 调度器对象
 
@@ -401,6 +382,11 @@ class AcController:
 
     def set_wait_time(self, wait_time):
         self.max_wait_time = wait_time
+
+    def set_price(self, high, mid, low):
+        self.high_price = high
+        self.mid_price = mid
+        self.low_price = low
 
     def power_on(self):
         self.sc = Scheduler(self.max_serve_num, self.max_wait_time)
@@ -466,7 +452,7 @@ class UserController:
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
-                del g_conn_pool_dict[self.id]
+                g_conn_pool_dict.pop(self.id)
                 print(self.addr, "下线了")
                 break
             else:
@@ -485,12 +471,15 @@ class UserController:
         return
 
     def set_start(self):
+        system_info = str(ac.default_tem) + ' ' + str(ac.cold_low) + ' ' + str(ac.warm_high) + ' ' + \
+            str(ac.mode)
+        self.client.sendall(system_info.encode("utf-8"))
         self.client.sendall(
             "user handler\ninput mode tem speed".encode("utf-8"))
         msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
         info = msg.split(' ')
-        request = Request(self.id, info[0], info[1], info[2])
+        request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
         self.client.sendall("ac start!".encode("utf-8"))
 
@@ -512,7 +501,7 @@ class UserController:
         msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
         info = msg.split(' ')
-        room_dict[self.id].set_room_info(info[0], info[1], info[2], info[3])
+        room_dict[self.id].set_room_info(float(info[0]), int(info[1]), int(info[2]), info[3])
         self.client.sendall("info updated!".encode("utf-8"))
 
     def set_change(self):
@@ -521,7 +510,7 @@ class UserController:
         msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
         info = msg.split(' ')
-        request = Request(self.id, info[0], info[1], info[2])
+        request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
         self.client.sendall("request changed!".encode("utf-8"))
 
@@ -543,7 +532,7 @@ class AdminController:
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
-                del g_conn_pool_dict[self.id]
+                g_conn_pool_dict.pop(self.id)
                 print(self.addr, "下线了")
                 break
             else:
@@ -568,6 +557,8 @@ class AdminController:
             for key in room_dict.keys():
                 info = key + ':' + str(room_dict[key].request_state)
                 client.sendall(info.encode("utf-8"))
+            for item in ac.sc.serve_queue:
+                client.sendall(str(item.id).encode("utf-8"))
             time.sleep(5)
 
     def listen_exit(self, q):
@@ -594,6 +585,9 @@ class AdminController:
         client.sendall("init_set, input wait time".encode("utf-8"))
         msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
         ac.set_wait_time(int(msg[0]))
+        client.sendall("init_set, input high price, mid price, low price".encode("utf-8"))
+        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        ac.set_price(float(msg[0]), float(msg[1]), float(msg[2]))
         client.sendall(SUCCESSMSG.encode("utf-8"))
         return
 
@@ -619,7 +613,7 @@ class WaiterController:
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
-                del g_conn_pool_dict[self.id]
+                g_conn_pool_dict.pop(self.id)
                 print(self.addr, "下线了")
                 break
             else:
@@ -671,7 +665,7 @@ class ManagerController:
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
-                del g_conn_pool_dict[self.id]
+                g_conn_pool_dict.pop(self.id)
                 print(self.addr, "下线了")
                 break
             else:
@@ -735,7 +729,6 @@ def message_handle(client, addr, login_msg, passwd):
         mcontroller.handler()
 
 
-
 if __name__ == '__main__':
     init_socket()
 
@@ -743,21 +736,6 @@ if __name__ == '__main__':
     thread.setDaemon(True)
     thread.start()
 
-    while True:
-        cmd = input("""--------------------------
-    输入1:查看当前在线人数
-    输入2:给指定客户端发送消息
-    输入3:关闭服务端
-    """)
-        if cmd == '1':
-            print("--------------------------")
-            print("当前在线人数：", len(g_conn_pool_dict))
-        elif cmd == '2':
-            print("--------------------------")
-            index, msg = input("请输入“索引,消息”的形式：").split(",")
-            g_conn_pool_dict[int(index)].sendall(msg.encode(encoding='utf8'))
-        elif cmd == '3':
-            exit()
 
 
 
