@@ -33,6 +33,7 @@ PAUSEMSG = '3'
 RESUMEMSG = '4'
 UPDATEMSG = '5'
 CHANGEMSG = '6'
+USERINITMSG = '7'
 
 CHECKINMSG = '1'  # 服务员信令
 CHECKOUTMSG = '2'
@@ -40,8 +41,12 @@ REFRESHMSG = '3'
 
 GETLOGMSG = '1'  # 经理信令
 
+RUNNINGMSG = '1'  # 房间信令
+WAITINGMSG = '2'
+
 SUCCESSMSG = '1'  # 通用信令
 FAILMSG = '0'
+
 
 g_conn_pool_dict = {}  # 连接池
 g_socket_server = None  # socket对象
@@ -107,11 +112,11 @@ class Room:
         self.set_tem = None
         self.set_speed = None
 
-    def get_ac_info(self):
-        tem = self.ac_tem
-        speed = self.ac_speed
-        mode = self.ac_mode
-        return tem, speed, mode
+    # def get_ac_info(self):
+    #     tem = self.ac_tem
+    #     speed = self.ac_speed
+    #     mode = self.ac_mode
+    #     return tem, speed, mode
 
     def set_room_info(self, room_tem, ac_tem, ac_speed, ac_mode):
         self.room_tem = room_tem
@@ -312,6 +317,8 @@ class Scheduler:
         self.lock.acquire()
         try:
             index = find_request_by_id(id, self.serve_queue)
+            if index == FAILMSG:
+                index = find_request_by_id(id, self.wait_queue)
             request = self.serve_queue[index]
             self.pause_queue.append(request)
             self.serve_queue.remove(self.serve_queue[index])
@@ -430,6 +437,9 @@ class AcController:
         print('handle_stop')
         self.sc.del_request(id)
 
+    def get_ac_info(self):
+        return self.default_tem, self.cold_low, self.warm_high, self.mode
+
 
 
 ac = AcController()
@@ -447,7 +457,7 @@ class UserController:
 
     def handler(self):
         while True:
-            self.client.sendall("user handler\nselect mode: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change".encode("utf-8"))
+            self.client.sendall("user handler\nselect mode: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
             msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
@@ -468,6 +478,8 @@ class UserController:
                     self.set_update()
                 elif msg == CHANGEMSG:
                     self.set_change()
+                elif msg == USERINITMSG:
+                    self.send_init()
         return
 
     def set_start(self):
@@ -514,6 +526,10 @@ class UserController:
         ac.handle_request(request)
         self.client.sendall("request changed!".encode("utf-8"))
 
+    def send_init(self):
+        dt, cl, wh, m = ac.get_ac_info()
+        msg = str(dt) + ' ' + str(cl) + ' ' + str(wh) + ' ' + str(m)
+        self.client.sendall(msg.encode("utf-8"))
 
 class AdminController:
     client = None
