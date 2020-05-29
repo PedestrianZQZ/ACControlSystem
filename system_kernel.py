@@ -167,7 +167,7 @@ class Scheduler:
                 self.serve_queue.append(request)
                 self.serve_time_list.append(0)
                 client = g_conn_pool_dict[request.id]
-                client.sendall("ac running!".encode('utf-8'))
+                client.sendall(RUNNINGMSG.encode('utf-8'))
                 room_dict[request.id].request_state = 'running'
             else:  # 如果服务队列没空位，选择性的加
                 if request.speed == HIGH:  # 如果是高风
@@ -177,7 +177,7 @@ class Scheduler:
                             self.serve_queue.append(request)
                             self.serve_time_list.append(0)
                             client = g_conn_pool_dict[request.id]
-                            client.sendall("ac running!".encode('utf-8'))
+                            client.sendall(RUNNINGMSG.encode('utf-8'))
                             room_dict[request.id].request_state = 'running'
                             isok = True
                             break
@@ -185,7 +185,7 @@ class Scheduler:
                         self.wait_queue.append(request)  # 全是高风就加到等待队列等着
                         self.wait_time_list.append(0)
                         client = g_conn_pool_dict[request.id]
-                        client.sendall("ac waiting!".encode('utf-8'))
+                        client.sendall(WAITINGMSG.encode('utf-8'))
                         room_dict[request.id].request_state = 'waiting'
                 elif request.speed == MID:  # 如果是中风
                     for item in self.serve_queue:
@@ -194,7 +194,7 @@ class Scheduler:
                             self.serve_queue.append(request)
                             self.serve_time_list.append(0)
                             client = g_conn_pool_dict[request.id]
-                            client.sendall("ac running!".encode('utf-8'))
+                            client.sendall(RUNNINGMSG.encode('utf-8'))
                             room_dict[request.id].request_state = 'running'
                             isok = True
                             break
@@ -202,13 +202,13 @@ class Scheduler:
                         self.wait_queue.append(request)  # 没有低风就加到等待队列等着
                         self.wait_time_list.append(0)
                         client = g_conn_pool_dict[request.id]
-                        client.sendall("ac waiting!".encode('utf-8'))
+                        client.sendall(WAITINGMSG.encode('utf-8'))
                         room_dict[request.id].request_state = 'waiting'
                 elif request.speed == LOW:  # 如果是低风
                     self.wait_queue.append(request)  # 直接进入等待队列
                     self.wait_time_list.append(0)
                     client = g_conn_pool_dict[request.id]
-                    client.sendall("ac waiting!".encode('utf-8'))
+                    client.sendall(WAITINGMSG.encode('utf-8'))
                     room_dict[request.id].request_state = 'waiting'
 
         finally:
@@ -245,7 +245,7 @@ class Scheduler:
             self.wait_queue.remove(self.serve_queue[result])
             self.wait_time_list.remove(self.serve_time_list[result])
             client = g_conn_pool_dict[id]
-            client.sendall("ac running!".encode('utf-8'))
+            client.sendall(RUNNINGMSG.encode('utf-8'))
             room_dict[id].request_state = 'running'
         finally:
             self.lock.release()
@@ -259,7 +259,7 @@ class Scheduler:
             self.serve_queue.remove(self.serve_queue[result])
             self.serve_time_list.remove(self.serve_time_list[result])
             client = g_conn_pool_dict[id]
-            client.sendall("ac waiting!".encode('utf-8'))
+            client.sendall(WAITINGMSG.encode('utf-8'))
             room_dict[id].request_state = 'waiting'
         finally:
             self.lock.release()
@@ -355,7 +355,7 @@ class Scheduler:
                     self.wait_queue.append(request1)
                     self.wait_time_list.append(0)
                     client = g_conn_pool_dict[id]
-                    client.sendall("ac waiting!".encode('utf-8'))
+                    client.sendall(WAITINGMSG.encode('utf-8'))
                     room_dict[id].request_state = 'waiting'
         finally:
             self.lock.release()
@@ -441,7 +441,6 @@ class AcController:
         return self.default_tem, self.cold_low, self.warm_high, self.mode
 
 
-
 ac = AcController()
 
 
@@ -457,7 +456,7 @@ class UserController:
 
     def handler(self):
         while True:
-            self.client.sendall("user handler\nselect mode: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
+            self.client.sendall("user handler\ninput the hole command: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
             msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
@@ -493,19 +492,19 @@ class UserController:
         info = msg.split(' ')
         request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
-        self.client.sendall("ac start!".encode("utf-8"))
+        self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def set_stop(self):
         ac.handle_stop(self.id)
-        self.client.sendall("ac stop!".encode("utf-8"))
+        self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def set_pause(self):
         ac.handle_pause(self.id)
-        self.client.sendall("ac pause!".encode("utf-8"))
+        self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def set_resume(self):
         ac.handle_resume(self.id)
-        self.client.sendall("ac resume!".encode("utf-8"))
+        self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def set_update(self):
         self.client.sendall(
@@ -514,7 +513,7 @@ class UserController:
         print(self.addr, "客户端消息:", msg)
         info = msg.split(' ')
         room_dict[self.id].set_room_info(float(info[0]), int(info[1]), int(info[2]), info[3])
-        self.client.sendall("info updated!".encode("utf-8"))
+        self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def set_change(self):
         self.client.sendall(
@@ -524,7 +523,7 @@ class UserController:
         info = msg.split(' ')
         request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
-        self.client.sendall("request changed!".encode("utf-8"))
+        self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def send_init(self):
         dt, cl, wh, m = ac.get_ac_info()
