@@ -456,8 +456,8 @@ class UserController:
 
     def handler(self):
         while True:
-            self.client.sendall("user handler\ninput the hole command: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
-            msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+            self.client.sendall("user handler\ninput the whole command: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
+            msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
@@ -465,31 +465,28 @@ class UserController:
                 print(self.addr, "下线了")
                 break
             else:
-                if msg == STARTMSG:
-                    self.set_start()
-                elif msg == STOPMSG:
+                if msg[0] == STARTMSG:
+                    self.set_start(msg[1:])
+                elif msg[0] == STOPMSG:
                     self.set_stop()
-                elif msg == PAUSEMSG:
+                elif msg[0] == PAUSEMSG:
                     self.set_pause()
-                elif msg == RESUMEMSG:
+                elif msg[0] == RESUMEMSG:
                     self.set_resume()
-                elif msg == UPDATEMSG:
-                    self.set_update()
-                elif msg == CHANGEMSG:
-                    self.set_change()
-                elif msg == USERINITMSG:
-                    self.send_init()
+                elif msg[0] == UPDATEMSG:
+                    self.set_update(msg[1:])
+                elif msg[0] == CHANGEMSG:
+                    self.set_change(msg[1:])
+                elif msg[0] == USERINITMSG:
+                    self.send_info()
         return
 
-    def set_start(self):
-        system_info = str(ac.default_tem) + ' ' + str(ac.cold_low) + ' ' + str(ac.warm_high) + ' ' + \
-            str(ac.mode)
-        self.client.sendall(system_info.encode("utf-8"))
-        self.client.sendall(
-            "user handler\ninput mode tem speed".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+    def set_start(self, msg):
+        # self.client.sendall(
+        #     "user handler\ninput mode tem speed".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
-        info = msg.split(' ')
+        info = msg
         request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
         self.client.sendall(SUCCESSMSG.encode("utf-8"))
@@ -506,29 +503,30 @@ class UserController:
         ac.handle_resume(self.id)
         self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
-    def set_update(self):
-        self.client.sendall(
-            "user handler\ninput room_tem ac_tem ac_speed ac_mode".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+    def set_update(self, msg):
+        # self.client.sendall(
+        #     "user handler\ninput room_tem ac_tem ac_speed ac_mode".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
-        info = msg.split(' ')
+        info = msg
         room_dict[self.id].set_room_info(float(info[0]), int(info[1]), int(info[2]), info[3])
         self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
-    def set_change(self):
-        self.client.sendall(
-            "user handler\ninput mode tem speed".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+    def set_change(self, msg):
+        # self.client.sendall(
+        #     "user handler\ninput mode tem speed".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
-        info = msg.split(' ')
+        info = msg
         request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
         self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
-    def send_init(self):
-        dt, cl, wh, m = ac.get_ac_info()
-        msg = str(dt) + ' ' + str(cl) + ' ' + str(wh) + ' ' + str(m)
-        self.client.sendall(msg.encode("utf-8"))
+    def send_info(self):
+        system_info = str(ac.default_tem) + ' ' + str(ac.cold_low) + ' ' + str(ac.warm_high) + ' ' + \
+                      str(ac.mode)
+        self.client.sendall(system_info.encode("utf-8"))
+
 
 class AdminController:
     client = None
@@ -542,8 +540,8 @@ class AdminController:
 
     def handler(self):
         while True:
-            self.client.sendall("admin handler\nselect mode: 1.supervise, 2.init set, 3.power on".encode("utf-8"))
-            msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+            self.client.sendall("admin handler\ninput whole command: 1.supervise, 2.init set, 3.power on".encode("utf-8"))
+            msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
@@ -551,11 +549,11 @@ class AdminController:
                 print(self.addr, "下线了")
                 break
             else:
-                if msg == SUPERVISEMSG:
+                if msg[0] == SUPERVISEMSG:
                     self.supervise(self.client, self.addr)
-                elif msg == INITSETMSG:
-                    self.init_set(self.client, self.addr)
-                elif msg == POWERONMSG:
+                elif msg[0] == INITSETMSG:
+                    self.init_set(self.client, self.addr, msg[1:])
+                elif msg[0] == POWERONMSG:
                     self.power_on(self.client, self.addr)
         return
 
@@ -583,26 +581,26 @@ class AdminController:
 
 
 
-    def init_set(self, client, addr):
+    def init_set(self, client, addr, msg):
         print("init_set")
-        client.sendall("init_set, input cl wh".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        # client.sendall("init_set, input cl wh".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
         ac.set_range(msg[0], msg[1])
-        client.sendall("init_set, input default_tem".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_default_tem(msg[0])
-        client.sendall("init_set, input max_serve_num".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_max_serve_num(msg[0])
-        client.sendall("init_set, input mode, 1.coldonly, 2.warmonly, 3.coldwarm".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_mode(msg[0])
-        client.sendall("init_set, input wait time".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_wait_time(int(msg[0]))
-        client.sendall("init_set, input high price, mid price, low price".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_price(float(msg[0]), float(msg[1]), float(msg[2]))
+        # client.sendall("init_set, input default_tem".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        ac.set_default_tem(msg[3])
+        # client.sendall("init_set, input max_serve_num".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        ac.set_max_serve_num(msg[4])
+        # client.sendall("init_set, input mode, 1.coldonly, 2.warmonly, 3.coldwarm".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        ac.set_mode(msg[5])
+        # client.sendall("init_set, input wait time".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        ac.set_wait_time(int(msg[6]))
+        # client.sendall("init_set, input high price, mid price, low price".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        ac.set_price(float(msg[7]), float(msg[8]), float(msg[9]))
         client.sendall(SUCCESSMSG.encode("utf-8"))
         return
 
@@ -623,8 +621,8 @@ class WaiterController:
 
     def handler(self):
         while True:
-            self.client.sendall("waiter handler\nselect mode: 1.check in, 2.check out, 3.refresh".encode("utf-8"))
-            msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+            self.client.sendall("waiter handler\ninput whole command: 1.check in, 2.check out, 3.refresh".encode("utf-8"))
+            msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
@@ -632,25 +630,25 @@ class WaiterController:
                 print(self.addr, "下线了")
                 break
             else:
-                if msg == CHECKINMSG:
-                    self.check_in(self.client, self.addr)
-                elif msg == CHECKOUTMSG:
-                    self.check_out(self.client, self.addr)
-                elif msg == REFRESHMSG:
+                if msg[0] == CHECKINMSG:
+                    self.check_in(self.client, self.addr, msg[1:])
+                elif msg[0] == CHECKOUTMSG:
+                    self.check_out(self.client, self.addr, msg[1:])
+                elif msg[0] == REFRESHMSG:
                     self.refresh(self.client, self.addr)
         return
 
-    def check_in(self, client, addr):
-        client.sendall("input target room id:".encode("utf-8"))
-        msg = client.recv(BUFSIZE).decode(encoding="utf8")
+    def check_in(self, client, addr, msg):
+        # client.sendall("input target room id:".encode("utf-8"))
+        # msg = client.recv(BUFSIZE).decode(encoding="utf8")
         print(addr, "客户端消息:", msg)
         room_dict[msg].check_in(ac.default_tem)
         spare_room_list.remove(msg)
         client.sendall((msg + "check in success!").encode("utf-8"))
 
-    def check_out(self, client, addr):
-        client.sendall("input target room id:".encode("utf-8"))
-        msg = client.recv(BUFSIZE).decode(encoding="utf8")
+    def check_out(self, client, addr, msg):
+        # client.sendall("input target room id:".encode("utf-8"))
+        # msg = client.recv(BUFSIZE).decode(encoding="utf8")
         print(addr, "客户端消息:", msg)
         room_dict[msg].check_out()
         spare_room_list.append(msg)
@@ -676,7 +674,7 @@ class ManagerController:
     def handler(self):
         while True:
             self.client.sendall("manager handler\nselect mode: 1.get log".encode("utf-8"))
-            msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+            msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
                 self.client.close()
@@ -684,73 +682,72 @@ class ManagerController:
                 print(self.addr, "下线了")
                 break
             else:
-                if msg == GETLOGMSG:
-                    self.getlog(self.client, self.addr)
+                if msg[0] == GETLOGMSG:
+                    self.getlog(self.client, self.addr, msg[1:])
         return
 
-    def getlog(self, client, addr):
-        self.client.sendall("input date: mm-dd".encode("utf-8"))
-        msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
+    def getlog(self, client, addr, msg):
+        # self.client.sendall("input date: mm-dd".encode("utf-8"))
+        # msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
         print(self.addr, "客户端消息:", msg)
         self.client.sendall(("daily log of %s output success" % msg).encode("utf-8"))
 
 
-def init_socket():
-    global g_socket_server
-    g_socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    g_socket_server.bind(ADDRESS)
-    g_socket_server.listen(5)
-    print("系统内核已启动，等待前端连接...")
+class Communicate:
+
+    def init_socket(self):
+        global g_socket_server
+        g_socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        g_socket_server.bind(ADDRESS)
+        g_socket_server.listen(5)
+        print("系统内核已启动，等待前端连接...")
 
 
-def accept_client():
-    """
-    接收新连接
-    :return:
-    """
-    while True:
-        client, addr = g_socket_server.accept()
+    def accept_client(self):
+        """
+        接收新连接
+        :return:
+        """
+        while True:
+            client, addr = g_socket_server.accept()
+            global g_conn_pool_dict
+            login_msg = client.recv(BUFSIZE).decode(encoding="utf8").split(" ")
+            g_conn_pool_dict[login_msg[0]] = client
+            passwd = staff_dict.get(login_msg[0], STAFF_NOT_EXIST)
 
-        login_msg = client.recv(BUFSIZE).decode(encoding="utf8").split(" ")
-        g_conn_pool_dict[login_msg[0]] = client
-        passwd = staff_dict.get(login_msg[0], STAFF_NOT_EXIST)
-
-        if passwd == STAFF_NOT_EXIST:
-            client.sendall("账户不存在".encode('utf-8'))
-        else:
-            if passwd != login_msg[1]:
-                client.sendall("用户名或密码错误".encode('utf-8'))
+            if passwd == STAFF_NOT_EXIST:
+                client.sendall("账户不存在".encode('utf-8'))
             else:
-                client.sendall((login_msg[0] + "登陆成功").encode('utf-8'))
-                thread = threading.Thread(target=message_handle, args=(client, addr, login_msg, passwd))
-                thread.setDaemon(True)
-                thread.start()
+                if passwd != login_msg[1]:
+                    client.sendall("用户名或密码错误".encode('utf-8'))
+                else:
+                    client.sendall((login_msg[0] + "登陆成功").encode('utf-8'))
+                    thread = threading.Thread(target=self.message_handle, args=(client, addr, login_msg, passwd))
+                    thread.setDaemon(True)
+                    thread.start()
 
 
-def message_handle(client, addr, login_msg, passwd):
-    print('message_handle')
-    account_kind = login_msg[0][0]  # 通过账号第一位标识是什么角色
-    if account_kind == ADMIN:
-        acontroller = AdminController(login_msg[0], client, addr)
-        acontroller.handler()
-    elif account_kind == USER:
-        ucontroller = UserController(login_msg[0], client, addr)
-        ucontroller.handler()
-    elif account_kind == WAITER:
-        wcontroller = WaiterController(login_msg[0], client, addr)
-        wcontroller.handler()
-    elif account_kind == MANAGER:
-        mcontroller = ManagerController(login_msg[0], client, addr)
-        mcontroller.handler()
+    def message_handle(self, client, addr, login_msg, passwd):
+        print('message_handle')
+        account_kind = login_msg[0][0]  # 通过账号第一位标识是什么角色
+        if account_kind == ADMIN:
+            acontroller = AdminController(login_msg[0], client, addr)
+            acontroller.handler()
+        elif account_kind == USER:
+            ucontroller = UserController(login_msg[0], client, addr)
+            ucontroller.handler()
+        elif account_kind == WAITER:
+            wcontroller = WaiterController(login_msg[0], client, addr)
+            wcontroller.handler()
+        elif account_kind == MANAGER:
+            mcontroller = ManagerController(login_msg[0], client, addr)
+            mcontroller.handler()
 
 
 if __name__ == '__main__':
-    init_socket()
+    c = Communicate()
+    c.init_socket()
 
-    thread = threading.Thread(target=accept_client())
+    thread = threading.Thread(target=c.accept_client())
     thread.setDaemon(True)
     thread.start()
-
-
-
-
