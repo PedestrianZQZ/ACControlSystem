@@ -112,19 +112,11 @@ class Room:
         self.set_tem = None
         self.set_speed = None
 
-    # def get_ac_info(self):
-    #     tem = self.ac_tem
-    #     speed = self.ac_speed
-    #     mode = self.ac_mode
-    #     return tem, speed, mode
-
     def set_room_info(self, room_tem, ac_tem, ac_speed, ac_mode):
         self.room_tem = room_tem
         self.ac_tem = ac_tem
         self.ac_speed = ac_speed
         self.ac_mode = ac_mode
-
-
 
 
 class Scheduler:
@@ -133,7 +125,6 @@ class Scheduler:
     pause_queue = []
     wait_time_list = []
     serve_time_list = []
-    protected_list = []
     max_serve_num = 3
     max_wait_time = 0
     lock = None
@@ -437,8 +428,6 @@ class AcController:
         print('handle_stop')
         self.sc.del_request(id)
 
-    def get_ac_info(self):
-        return self.default_tem, self.cold_low, self.warm_high, self.mode
 
 
 ac = AcController()
@@ -642,17 +631,17 @@ class WaiterController:
         # client.sendall("input target room id:".encode("utf-8"))
         # msg = client.recv(BUFSIZE).decode(encoding="utf8")
         print(addr, "客户端消息:", msg)
-        room_dict[msg].check_in(ac.default_tem)
-        spare_room_list.remove(msg)
-        client.sendall((msg + "check in success!").encode("utf-8"))
+        room_dict[str(msg[0])].check_in(ac.default_tem)
+        spare_room_list.remove(str(msg[0]))
+        client.sendall((str(msg[0]) + "check in success!").encode("utf-8"))
 
     def check_out(self, client, addr, msg):
         # client.sendall("input target room id:".encode("utf-8"))
         # msg = client.recv(BUFSIZE).decode(encoding="utf8")
         print(addr, "客户端消息:", msg)
-        room_dict[msg].check_out()
-        spare_room_list.append(msg)
-        client.sendall((msg + "check out success!").encode("utf-8"))
+        room_dict[str(msg[0])].check_out()
+        spare_room_list.append(str(msg[0]))
+        client.sendall((str(msg[0]) + "check out success!").encode("utf-8"))
 
     def refresh(self, client, addr):
         str = ''
@@ -683,14 +672,14 @@ class ManagerController:
                 break
             else:
                 if msg[0] == GETLOGMSG:
-                    self.getlog(self.client, self.addr, msg[1:])
+                    self.get_log(self.client, self.addr, msg[1:])
         return
 
-    def getlog(self, client, addr, msg):
+    def get_log(self, client, addr, msg):
         # self.client.sendall("input date: mm-dd".encode("utf-8"))
         # msg = self.client.recv(BUFSIZE).decode(encoding="utf8")
-        print(self.addr, "客户端消息:", msg)
-        self.client.sendall(("daily log of %s output success" % msg).encode("utf-8"))
+        print(self.addr, "客户端消息:", msg[0])
+        self.client.sendall(("daily log of %s output success" % msg[0]).encode("utf-8"))
 
 
 class Communicate:
