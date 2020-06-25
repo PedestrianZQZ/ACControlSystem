@@ -270,7 +270,7 @@ class Scheduler:
 
     def select_request(self):
         result = self.wait_queue[0]
-        wait_time = 0
+        wait_time = self.wait_time_list[0]
         for index, item in enumerate(self.wait_queue):
             if item.speed > result.speed:  # 挑风速大的
                 result = item
@@ -281,17 +281,33 @@ class Scheduler:
                     wait_time = self.wait_time_list[index]
         return result.id
 
+    def select_lowest_request(self):
+        result = self.serve_queue[0]
+        locate = 0
+        for index, request in enumerate(self.serve_queue):
+            if request.speed < result.speed:
+                result = request
+                locate = index
+        return locate
+
     def schedule(self, num):
-        is_get_same = False
+        is_get_same = False  # 用于标识运行队列中是否找到与等待队列中到时间的请求优先级相同的请求
         while True:
             self.lock.acquire()
             try:
-                while len(self.wait_queue) != 0 and len(self.serve_queue) < self.max_serve_num:  # 首先处理服务队列不满的情况
+                while len(self.wait_queue) != 0 and len(self.serve_queue) < int(self.max_serve_num):  # 首先处理服务队列不满的情况
                     result = self.select_request()
                     self.swap_in(result)
+                # 接着进行优先级调度
+                for wrequest in self.wait_queue:
+                    srequest = self.serve_queue[int(self.select_lowest_request())]
+                    if wrequest.speed > srequest.speed:
+                        self.swap_out(srequest.id)
+                        self.swap_in(wrequest.id)
+
                 for index1, time1 in enumerate(self.wait_time_list):  # 接着处理到等待时间的请求
                     if time1 >= self.max_wait_time:
-                        target_request = self.wait_queue[index1]
+                        # target_request = self.wait_queue[index1]
                         serve_time = -1  # 存疑
 
                         for index2, request in enumerate(self.serve_queue):
@@ -299,8 +315,8 @@ class Scheduler:
                                 self.swap_out(request.id)
                                 self.swap_in(self.wait_queue[index1].id)
                                 break
-                            elif request.speed == self.wait_queue[index1].speed and \
-                                    self.serve_time_list[index2] > serve_time:  # 否则找服务时间最长同等级替换的替换
+                            if request.speed == self.wait_queue[index1].speed and \
+                                self.serve_time_list[index2] > serve_time:  # 否则找服务时间最长同等级替换的替换
                                 target_request = request
                                 serve_time = self.serve_time_list[index2]
                                 is_get_same = True
@@ -315,6 +331,7 @@ class Scheduler:
                     item = item + 1
             finally:
                 self.lock.release()
+                is_get_same = False
             time.sleep(5)
 
     def on_pause(self, id):
@@ -516,6 +533,8 @@ class UserController:
         info = msg
         request = Request(self.id, info[0], int(info[1]), int(info[2]))
         ac.handle_request(request)
+        room_tem = room_dict[self.id].get_room_tem()
+        room_dict[self.id].set_room_info(room_tem, int(info[1]), int(info[2]), info[0])
         self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def send_info(self):
