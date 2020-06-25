@@ -51,7 +51,7 @@ FAILMSG = '0'
 g_conn_pool_dict = {}  # 连接池
 g_socket_server = None  # socket对象
 staff_dict = {'0401': '0', '0402': '0', '0403': '0', '0404': '0', '1': '123456', '2': '123456', '3': '123456'}  # 工作人员信息,1开头表示服务员，2开头表示管理员，3开头表示经理
-spare_room_list = ['0401', '0402', '0403', '0404', '0405', '0406', '0407', '0408', '0409', '0410']
+spare_room_list = ['0401', '0402', '0403', '0404', '0405']
 room_dict = {}
 
 ac = None  # 空调系统对象
@@ -98,10 +98,10 @@ class Room:
         self.ac_tem = set_tem
         self.ac_speed = set_speed
         self.ac_mode = set_mode
+        self.request_state = 'stopping'
 
     def check_in(self, tem):
         self.isopen = True
-        self.room_tem = tem
         self.ac_tem = tem
         self.ac_speed = MID
 
@@ -117,6 +117,19 @@ class Room:
         self.ac_tem = ac_tem
         self.ac_speed = ac_speed
         self.ac_mode = ac_mode
+
+    def get_room_tem(self):
+        return self.room_tem
+
+    def get_room_info(self):
+        data = []
+        data.append(self.isopen)
+        data.append(self.request_state)
+        data.append(self.room_tem)
+        data.append(self.ac_tem)
+        data.append(self.ac_speed)
+        data.append(self.ac_mode)
+        return data
 
 
 class Scheduler:
@@ -315,7 +328,7 @@ class Scheduler:
             self.serve_queue.remove(self.serve_queue[index])
             self.serve_time_list.remove(self.serve_time_list[index])
             client = g_conn_pool_dict[id]
-            client.sendall("ac pausing!".encode('utf-8'))
+            # client.sendall("ac pausing!".encode('utf-8'))
             room_dict[id].request_state = 'pausing'
         finally:
             self.lock.release()
@@ -338,7 +351,7 @@ class Scheduler:
                         self.serve_time_list.append(0)
                         isok = True
                         client = g_conn_pool_dict[id]
-                        client.sendall("ac resuming!".encode('utf-8'))
+                        # client.sendall("ac resuming!".encode('utf-8'))
                         room_dict[id].request_state = 'running'
                         break
 
@@ -397,16 +410,11 @@ class AcController:
         else:
             mode = self.mode
         tem = ac.get_default_tem()
-        room_dict['0401'] = Room('0401', tem, tem, MID, mode)
-        room_dict['0402'] = Room('0402', tem, tem, MID, mode)
-        room_dict['0403'] = Room('0403', tem, tem, MID, mode)
-        room_dict['0404'] = Room('0404', tem, tem, MID, mode)
-        room_dict['0405'] = Room('0405', tem, tem, MID, mode)
-        room_dict['0406'] = Room('0406', tem, tem, MID, mode)
-        room_dict['0407'] = Room('0407', tem, tem, MID, mode)
-        room_dict['0408'] = Room('0408', tem, tem, MID, mode)
-        room_dict['0409'] = Room('0409', tem, tem, MID, mode)
-        room_dict['0410'] = Room('0410', tem, tem, MID, mode)
+        room_dict['0401'] = Room('0401', 32, tem, MID, mode)
+        room_dict['0402'] = Room('0402', 28, tem, MID, mode)
+        room_dict['0403'] = Room('0403', 30, tem, MID, mode)
+        room_dict['0404'] = Room('0404', 29, tem, MID, mode)
+        room_dict['0405'] = Room('0405', 35, tem, MID, mode)
 
     def get_mode(self):
         return self.mode
@@ -429,7 +437,6 @@ class AcController:
         self.sc.del_request(id)
 
 
-
 ac = AcController()
 
 
@@ -445,7 +452,7 @@ class UserController:
 
     def handler(self):
         while True:
-            self.client.sendall("user handler\ninput the whole command: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
+            # self.client.sendall("user handler\ninput the whole command: 1.start, 2.stop, 3.pause, 4.resume, 5.update, 6.change, 7.init".encode("utf-8"))
             msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
             print(self.addr, "客户端消息:", msg)
             if len(msg) == 0:
@@ -512,8 +519,9 @@ class UserController:
         self.client.sendall(SUCCESSMSG.encode("utf-8"))
 
     def send_info(self):
+        room_tem = room_dict[self.id].get_room_tem()
         system_info = str(ac.default_tem) + ' ' + str(ac.cold_low) + ' ' + str(ac.warm_high) + ' ' + \
-                      str(ac.mode)
+                      str(ac.mode) + ' ' + str(room_tem)
         self.client.sendall(system_info.encode("utf-8"))
 
 
@@ -557,7 +565,10 @@ class AdminController:
             if not q.empty():
                 break
             for key in room_dict.keys():
-                info = key + ':' + str(room_dict[key].request_state)
+                data = room_dict[key].get_room_info()
+                # isopen + request_state + room_tem + ac_tem + ac_speed + ac_mode
+                info = key + ' ' + str(data[0]) + ' ' + str(data[1]) + ' ' \
+                       + str(data[2]) + ' ' + str(data[3]) + ' ' + str(data[4]) + ' ' + str(data[5])
                 client.sendall(info.encode("utf-8"))
             for item in ac.sc.serve_queue:
                 client.sendall(str(item.id).encode("utf-8"))
@@ -577,19 +588,19 @@ class AdminController:
         ac.set_range(msg[0], msg[1])
         # client.sendall("init_set, input default_tem".encode("utf-8"))
         # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_default_tem(msg[3])
+        ac.set_default_tem(msg[2])
         # client.sendall("init_set, input max_serve_num".encode("utf-8"))
         # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_max_serve_num(msg[4])
+        ac.set_max_serve_num(msg[3])
         # client.sendall("init_set, input mode, 1.coldonly, 2.warmonly, 3.coldwarm".encode("utf-8"))
         # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_mode(msg[5])
+        ac.set_mode(msg[4])
         # client.sendall("init_set, input wait time".encode("utf-8"))
         # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_wait_time(int(msg[6]))
+        ac.set_wait_time(int(msg[5]))
         # client.sendall("init_set, input high price, mid price, low price".encode("utf-8"))
         # msg = self.client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
-        ac.set_price(float(msg[7]), float(msg[8]), float(msg[9]))
+        ac.set_price(float(msg[6]), float(msg[7]), float(msg[8]))
         client.sendall(SUCCESSMSG.encode("utf-8"))
         return
 
