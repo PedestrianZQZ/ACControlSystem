@@ -126,9 +126,9 @@ class Room:
         data.append(self.isopen)
         data.append(self.request_state)
         data.append(self.room_tem)
+        data.append(self.ac_mode)
         data.append(self.ac_tem)
         data.append(self.ac_speed)
-        data.append(self.ac_mode)
         return data
 
 
@@ -613,7 +613,7 @@ class AdminController:
     def supervise(self, client, addr):
         q = queue.Queue()
         print("supervise mode")
-        client.sendall("supervise mode, input whatever to exit".encode("utf-8"))
+        # client.sendall("supervise mode, input whatever to exit".encode("utf-8"))
         thread = threading.Thread(target=self.listen_exit, args=(q,))
         thread.setDaemon(True)
         thread.start()
@@ -622,12 +622,12 @@ class AdminController:
                 break
             for key in room_dict.keys():
                 data = room_dict[key].get_room_info()
-                # isopen + request_state + room_tem + ac_tem + ac_speed + ac_mode
+                # isopen + request_state + room_tem + ac_mode + ac_tem + ac_speed
                 info = key + ' ' + str(data[0]) + ' ' + str(data[1]) + ' ' \
                        + str(data[2]) + ' ' + str(data[3]) + ' ' + str(data[4]) + ' ' + str(data[5]) + ' '
                 client.sendall(info.encode("utf-8"))
-            for item in ac.sc.serve_queue:
-                client.sendall(str(item.id).encode("utf-8"))
+            # for item in ac.sc.serve_queue:
+            #     client.sendall(str(item.id).encode("utf-8"))
             time.sleep(5)
 
     def listen_exit(self, q):
@@ -708,6 +708,7 @@ class WaiterController:
         print(addr, "客户端消息:", msg)
         room_dict[str(msg[0])].check_out()
         spare_room_list.append(str(msg[0]))
+        spare_room_list.sort()
         client.sendall((str(msg[0]) + "check out success!").encode("utf-8"))
 
     def refresh(self, client, addr):
