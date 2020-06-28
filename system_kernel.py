@@ -38,6 +38,7 @@ USERINITMSG = '7'
 CHECKINMSG = '1'  # 服务员信令
 CHECKOUTMSG = '2'
 REFRESHMSG = '3'
+BILLMSG = 'b'
 
 GETLOGMSG = '1'  # 经理信令
 
@@ -620,12 +621,13 @@ class AdminController:
         while True:
             if not q.empty():
                 break
+            info = ''
             for key in room_dict.keys():
                 data = room_dict[key].get_room_info()
                 # isopen + request_state + room_tem + ac_mode + ac_tem + ac_speed
-                info = key + ' ' + str(data[0]) + ' ' + str(data[1]) + ' ' \
+                info = info + key + ' ' + str(data[0]) + ' ' + str(data[1]) + ' ' \
                        + str(data[2]) + ' ' + str(data[3]) + ' ' + str(data[4]) + ' ' + str(data[5]) + ' '
-                client.sendall(info.encode("utf-8"))
+            client.sendall(info.encode("utf-8"))
             # for item in ac.sc.serve_queue:
             #     client.sendall(str(item.id).encode("utf-8"))
             time.sleep(5)
@@ -710,6 +712,13 @@ class WaiterController:
         spare_room_list.append(str(msg[0]))
         spare_room_list.sort()
         client.sendall((str(msg[0]) + "check out success!").encode("utf-8"))
+        msg = '0401,2020-06-28 02:02:55^2020-06-28 02:28:07^205,02:05:55^02:09:19^4^3^1^4|02:10:19^02:11:19^1^3^1^1|02:12:19^02:13:19^1^3^1^1|02:14:19^02:15:19^1^3^1^1|02:16:19^02:17:19^1^3^1^1|02:18:19^02:19:19^1^3^1^1|02:20:19^02:21:19^1^3^1^1|02:22:19^02:23:19^1^3^1^1|02:24:19^02:26:07^2^3^1^2'
+        signal = client.recv(BUFSIZE).decode(encoding="utf8").split(' ')
+        print(signal)
+        print(msg)
+        if signal[0] == 'b':
+            client.sendall(msg.encode("utf-8"))
+            print('c')
 
     def refresh(self, client, addr):
         str = ''

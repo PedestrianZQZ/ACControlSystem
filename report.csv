@@ -1,0 +1,6 @@
+roomID,use_num,duration,fee,dispatch_num,list_num,setTemp_num,setSpeed_num
+0401,1,12,7.5,2,4,0,3
+0402,1,12,6.0,2,4,0,0
+0403,1,13,6.5,2,3,0,0
+0404,1,10,5.0,2,2,0,0
+0405,0,0,0,0,0,0,0
